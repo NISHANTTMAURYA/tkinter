@@ -11,8 +11,6 @@ filename = 'http_server.py'
 
 def import_folder():
     try:
-        change_page = app(root)
-        change_page.page2()
         options = {
             "initialdir": "C:/Users/Username/Documents",
             "title": "Select a Folder"
@@ -20,49 +18,53 @@ def import_folder():
 
         global file_path
         file_path = askdirectory(**options)
-        print(file_path)
-        
-        with open(filename) as file:
-            script = file.read()
-            exec(script)
-
-        
-
-        # try:
-        #     import subprocess
-        #     subprocess.run(['python3', 'http_server.py'])
-        #     # get_path(file_path)
+        if not file_path:  # If user cancels selection
+            return
             
-        # except Exception as e:
-        #     print(e)
+        print(f"Selected path: {file_path}")
+        
+        try:
+            import subprocess
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            server_path = os.path.join(script_dir, 'http_server.py')
+            # Pass the file_path and type as command line arguments
+            subprocess.Popen(['python3', server_path, file_path, 'folder'])
+            
+            # Only change page after successful server start
+            change_page = app(root)
+            change_page.page2()
+            
+        except Exception as e:
+            print(f"Error starting server: {e}")
         
     except Exception as e:
-        print(e)
+        print(f"Error in import_folder: {e}")
 
 def import_file():
     try:
-        change_page = app(root)
-        change_page.page2()
         global file_path
         file_path = filedialog.askopenfilename(title="Select a file to share", filetypes=[("All files", "*.*")])
-        print(file_path)
-
-        # filename = 'http_server.py'
-        # with open(filename) as file:
-        #     exec(file.read())
-
-          
-
+        if not file_path:  # If user cancels selection
+            return
+            
+        print(f"Selected file: {file_path}")
+        
         try:
             import subprocess
-            subprocess.run(['python3', 'http_server.py'])
-            # get_path(file_path)
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            server_path = os.path.join(script_dir, 'http_server.py')
+            # Pass the file_path and type as command line arguments
+            subprocess.Popen(['python3', server_path, file_path, 'file'])
+            
+            # Only change page after successful server start
+            change_page = app(root)
+            change_page.page2()
             
         except Exception as e:
-            print(e)
+            print(f"Error starting server: {e}")
         
     except Exception as e:
-        print(e)
+        print(f"Error in import_file: {e}")
 
 
 
@@ -108,24 +110,3 @@ app(root)
 
 root.mainloop()
 
-
-        # file_name = os.path.basename(file_path)  # Get the file name from the path
-        # destination_path = os.path.join(os.getcwd(), file_name)
-
-        # try:
-        #     with open(file_path, 'rb') as src_file:
-        #         with open(destination_path, 'wb') as dest_file:
-        #             shutil.copyfileobj(src_file, dest_file)  # Copy the content from source to destination
-        #     print(f"File saved successfully at {destination_path}")
-        #     change_page = app(root)
-        #     change_page.page2()
-        # except Exception as e:
-        #     print(f"Error: {e}")
-        
-            
-        
-    # except Exception as e:
-    #     print(e)
-    # if file_path:
-    #     # Process the selected file (you can replace this with your own logic)
-    #     print("file exists")
