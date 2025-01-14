@@ -306,24 +306,9 @@ def start_server(path, type_of_share, url_file):
     ngrok.kill()
     time.sleep(1)  # Wait for ngrok to fully close
     
-    # Create a temporary directory for serving files
-    print("Setting up temporary directory...")
-    temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp_serve')
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-    os.makedirs(temp_dir, exist_ok=True)
-    
-    if type_of_share == 'file':
-        print(f"Preparing to serve file: {path}")
-        file_name = os.path.basename(path)
-        dest_path = os.path.join(temp_dir, file_name)
-        shutil.copy2(path, dest_path)
-        os.chdir(temp_dir)
-        print(f"Serving file: {file_name}")
-    else:
-        print(f"Preparing to serve directory: {path}")
-        os.chdir(path)
-        print(f"Serving directory: {path}")
+    print(f"Preparing to serve from directory: {path}")
+    os.chdir(path)
+    print(f"Serving from directory: {path}")
     
     handler_object = MyHttpRequestHandler
     

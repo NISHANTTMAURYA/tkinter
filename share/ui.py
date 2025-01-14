@@ -46,6 +46,8 @@ def cleanup_ports_background():
             # Wait for ports to be fully released
             time.sleep(0.5)
             
+            # Don't clean temp directory here anymore
+            
         except Exception as e:
             print(f"Error during cleanup: {e}")
 
@@ -108,7 +110,9 @@ def import_file():
         if not files:  # If user cancels selection
             return
             
-        print(f"Selected files: {files}")
+        print(f"\nDebug: Selected files:")
+        for file in files:
+            print(f"- {file}")
         
         try:
             import subprocess
@@ -117,29 +121,74 @@ def import_file():
             url_file = os.path.join(script_dir, 'share_url.txt')
             temp_dir = os.path.join(script_dir, 'temp_serve')
             
+            print(f"\nDebug: Absolute paths:")
+            print(f"Script dir: {os.path.abspath(script_dir)}")
+            print(f"Server path: {os.path.abspath(server_path)}")
+            print(f"Temp dir: {os.path.abspath(temp_dir)}")
+            
             # Clear any existing URL file
             if os.path.exists(url_file):
                 os.remove(url_file)
             
-            # Create temp directory if it doesn't exist
-            if not os.path.exists(temp_dir):
-                os.makedirs(temp_dir)
+            # Clean and recreate temp directory
+            if os.path.exists(temp_dir):
+                print(f"Debug: Removing existing temp directory")
+                shutil.rmtree(temp_dir)
+            os.makedirs(temp_dir)
+            print(f"Debug: Created fresh temp directory at {os.path.abspath(temp_dir)}")
             
             # Copy all selected files to temp directory
+            print("\nDebug: Copying files to temp directory:")
             for file_path in files:
-                shutil.copy2(file_path, temp_dir)
+                dest_path = os.path.join(temp_dir, os.path.basename(file_path))
+                print(f"Copying {file_path} -> {dest_path}")
+                shutil.copy2(file_path, dest_path)
+                # Verify file was copied
+                if os.path.exists(dest_path):
+                    print(f"Successfully copied: {os.path.basename(dest_path)} ({os.path.getsize(dest_path)} bytes)")
+                else:
+                    print(f"Warning: Failed to copy {os.path.basename(file_path)}")
+            
+            # Verify files in temp directory
+            print("\nDebug: Files in temp directory before server start:")
+            temp_files = os.listdir(temp_dir)
+            for file in temp_files:
+                file_path = os.path.join(temp_dir, file)
+                print(f"- {file} ({os.path.getsize(file_path)} bytes)")
+            
+            if not temp_files:
+                raise Exception("No files were copied to temp directory")
             
             # Create new app instance with clean state
             change_page = app(root)
             change_page.url_file = url_file
+            # Important: Change - we're serving from temp_dir but telling server it's a folder
             change_page.server_process = subprocess.Popen(['python3', server_path, temp_dir, 'folder', url_file])
+            
+            # Wait briefly to ensure server starts
+            time.sleep(1)
+            
+            # Verify temp directory still exists and has files
+            print("\nDebug: Verifying temp directory after server start:")
+            if os.path.exists(temp_dir):
+                files_after = os.listdir(temp_dir)
+                print(f"Temp directory exists at {os.path.abspath(temp_dir)}")
+                print(f"Files in temp_serve: {files_after}")
+                for file in files_after:
+                    file_path = os.path.join(temp_dir, file)
+                    print(f"- {file} ({os.path.getsize(file_path)} bytes)")
+            else:
+                print(f"Warning: Temp directory no longer exists at {os.path.abspath(temp_dir)}!")
+            
             change_page.page2()
             
         except Exception as e:
             print(f"Error starting server: {e}")
+            print(f"Stack trace: {traceback.format_exc()}")
         
     except Exception as e:
         print(f"Error in import_file: {e}")
+        print(f"Stack trace: {traceback.format_exc()}")
 
 
 
