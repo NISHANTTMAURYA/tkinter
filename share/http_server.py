@@ -5,6 +5,7 @@ import sys
 import shutil
 from pyngrok import ngrok
 import signal
+import json
 
 PORT = 8000
 
@@ -42,7 +43,7 @@ def cleanup_and_exit():
     
     sys.exit(0)
 
-def start_server(path, type_of_share):
+def start_server(path, type_of_share, url_file):
     # Set up signal handlers
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
@@ -74,6 +75,10 @@ def start_server(path, type_of_share):
     if not public_url:
         print("Failed to start ngrok tunnel")
         sys.exit(1)
+    
+    # Write the URL to the specified file
+    with open(url_file, 'w') as f:
+        f.write(public_url)
 
     with socketserver.TCPServer(("", PORT), handler_object) as httpd:
         print(f"\nLocal server running at: http://localhost:{PORT}")
@@ -95,9 +100,9 @@ def start_server(path, type_of_share):
             print("Server closed.")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 2:
-        start_server(sys.argv[1], sys.argv[2])
+    if len(sys.argv) > 3:
+        start_server(sys.argv[1], sys.argv[2], sys.argv[3])
     else:
-        print("Usage: python http_server.py <path> <type>")
+        print("Usage: python http_server.py <path> <type> <url_file>")
         print("type can be 'file' or 'folder'")
         sys.exit(1)
