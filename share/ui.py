@@ -6,21 +6,29 @@ import time
 import subprocess
 import os
 import threading
+import importlib.util
+import traceback
+import ngrok
 
 from tkinter.filedialog import SaveFileDialog,askdirectory
 def cleanup_ports_background():
     def cleanup():
         print("Starting background port cleanup...")
         try:
-            # Kill any existing ngrok processes
+            # First kill any existing ngrok processes
             print("Checking for ngrok processes...")
             try:
+                # More thorough ngrok cleanup
+                ngrok.kill()  # Kill through pyngrok
+                time.sleep(0.5)  # Brief wait
+                
+                # Additional ngrok process cleanup
                 subprocess.run(['pkill', 'ngrok'], stderr=subprocess.DEVNULL)
                 print("Killed ngrok processes")
             except Exception as e:
-                print(f"Note: No ngrok processes found ({e})")
+                print(f"Note: Ngrok cleanup: {e}")
             
-            # Kill any process on port 8000
+            # Then kill any process on port 8000
             print("Checking for processes on port 8000...")
             try:
                 cmd = "lsof -ti :8000"
@@ -29,16 +37,13 @@ def cleanup_ports_background():
                     print(f"Found process {pid} on port 8000, killing it...")
                     subprocess.run(['kill', '-9', pid], stderr=subprocess.DEVNULL)
                     print(f"Killed process {pid}")
-                else:
-                    print("No process found on port 8000")
             except subprocess.CalledProcessError:
                 print("No process found on port 8000")
             except Exception as e:
                 print(f"Error checking port 8000: {e}")
 
-            # Wait a moment to ensure ports are cleared
-            time.sleep(1)
-            print("Port cleanup completed")
+            # Wait for ports to be fully released
+            time.sleep(0.5)
             
         except Exception as e:
             print(f"Error during cleanup: {e}")
@@ -47,8 +52,6 @@ def cleanup_ports_background():
     thread = threading.Thread(target=cleanup)
     thread.daemon = True
     thread.start()
-    # Wait a moment for cleanup to complete
-    time.sleep(2)
 
 # Run cleanup when app starts
 print("Initializing application...")
@@ -144,14 +147,20 @@ class app:
     
     def on_closing(self):
         try:
-            # Stop server process if running
             if self.server_process:
+                # Kill the server process
                 self.server_process.terminate()
-                self.server_process.wait()
+                self.server_process.wait(timeout=1)
             
-            # Clean up URL file if it exists
+            # Clean up URL file
             if self.url_file and os.path.exists(self.url_file):
                 os.remove(self.url_file)
+                
+            # Ensure ngrok is killed
+            ngrok.kill()
+            
+            # Run final cleanup in background
+            cleanup_ports_background()
                 
         except Exception as e:
             print(f"Error during cleanup: {e}")
@@ -186,28 +195,23 @@ class app:
         self.frame2.pack(expand=True, fill='both')
         
         # Add a title
-        title_label = tk.Label(self.frame2, text="Share Link", font=('Arial', 16, 'bold'))
+        title_label = tk.Label(self.frame2, text="File Sharing Active", font=('Arial', 16, 'bold'))
         title_label.pack(pady=20)
         
-        # Wait briefly for the URL file to be created
-        attempts = 0
-        max_attempts = 20  # Increased wait time
-        while attempts < max_attempts and not os.path.exists(self.url_file):
-            time.sleep(0.5)
-            attempts += 1
-            
-        if not os.path.exists(self.url_file):
-            error_label = tk.Label(self.frame2, text="Error: Could not get sharing URL", font=('Arial', 12))
-            error_label.pack(pady=10)
-            return
-            
         try:
-            # Read the URL from the file
-            with open(self.url_file, 'r') as f:
-                url = f.read().strip()
+            # Read the URL from the file with timeout
+            url = None
+            start_time = time.time()
+            while time.time() - start_time < 10:  # 10 second timeout
+                if os.path.exists(self.url_file):
+                    with open(self.url_file, 'r') as f:
+                        url = f.read().strip()
+                    if url:
+                        break
+                time.sleep(0.5)
             
-            if not url:  # Check if URL is empty
-                raise Exception("No URL found")
+            if not url:
+                raise Exception("Could not get sharing URL")
                 
             # Display URL
             url_label = tk.Label(self.frame2, text=f"Share URL:", font=('Arial', 12))
@@ -221,30 +225,83 @@ class app:
             qr.add_data(url)
             qr.make(fit=True)
             qr_image = qr.make_image(fill_color="black", back_color="white")
-            
-            # Resize QR code to fit window better
             qr_image = qr_image.resize((300, 300))
-            
-            # Convert to PhotoImage
             qr_photo = ImageTk.PhotoImage(qr_image)
             
-            # Display QR Code with a label
+            # Display QR Code
             qr_title = tk.Label(self.frame2, text="Scan QR Code:", font=('Arial', 12))
             qr_title.pack(pady=5)
             
             self.qr_label = tk.Label(self.frame2, image=qr_photo)
-            self.qr_label.image = qr_photo  # Keep a reference!
+            self.qr_label.image = qr_photo
             self.qr_label.pack(pady=10)
             
+            # Share Another File button
+            def share_another():
+                if self.server_process:
+                    self.server_process.terminate()
+                    self.server_process = None
+                cleanup_ports_background()
+                self.page1()
+            
+            share_btn = tk.Button(self.frame2, text="Share Another File", 
+                                command=share_another,
+                                font=('Arial', 12),
+                                bg='#4CAF50',
+                                fg='white',
+                                padx=20,
+                                pady=10)
+            share_btn.pack(pady=20)
+            
         except Exception as e:
-            error_label = tk.Label(self.frame2, text=f"Error generating QR code: {e}")
+            error_label = tk.Label(self.frame2, text=f"Error: {e}")
             error_label.pack(pady=10)
-        
-        # Back button
-        self.login_btn = tk.Button(self.frame2, text="Back", command=self.page1,
-                                 font=('Arial', 12))
-        self.login_btn.pack(pady=20)
+            # Add retry button
+            retry_btn = tk.Button(self.frame2, text="Try Again", 
+                                command=self.page1,
+                                font=('Arial', 12))
+            retry_btn.pack(pady=10)
 
+    def update_shared_content(self, path, is_file=False):
+        print(f"\nAttempting to update shared content:")
+        print(f"Path: {path}")
+        print(f"Is file: {is_file}")
+        
+        if self.server_process and self.server_process.poll() is None:
+            print("Server is running")
+            try:
+                # Update the server's directory
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                server_path = os.path.join(script_dir, 'http_server.py')
+                print(f"Server path: {server_path}")
+                
+                # Use same URL file
+                if not hasattr(self, 'url_file'):
+                    self.url_file = os.path.join(script_dir, 'share_url.txt')
+                print(f"URL file: {self.url_file}")
+                
+                # Update the server's directory
+                print("Loading server module...")
+                spec = importlib.util.spec_from_file_location("http_server", server_path)
+                server_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(server_module)
+                
+                print("Calling update_directory...")
+                if server_module.MyHttpRequestHandler.update_directory(path, is_file):
+                    print("Update successful, refreshing page...")
+                    # Refresh the page to show current content
+                    self.page2()
+                else:
+                    print("Update failed")
+                    tk.messagebox.showerror("Error", "Failed to update shared content")
+            except Exception as e:
+                print(f"Error during update: {e}")
+                print(f"Exception type: {type(e)}")
+                print(f"Traceback: {traceback.format_exc()}")
+                tk.messagebox.showerror("Error", f"Error updating shared content: {e}")
+        else:
+            print("Server not running")
+            tk.messagebox.showerror("Error", "Server not running")
 
 app(root)
 
