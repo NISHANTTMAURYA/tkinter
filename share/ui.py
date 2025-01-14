@@ -23,8 +23,11 @@ def cleanup_ports_background():
                 ngrok.kill()  # Kill through pyngrok
                 time.sleep(0.5)  # Brief wait
                 
-                # Additional ngrok process cleanup
-                subprocess.run(['pkill', 'ngrok'], stderr=subprocess.DEVNULL)
+                # Platform-specific ngrok process cleanup
+                if os.name == 'posix':  # Mac/Linux
+                    subprocess.run(['pkill', 'ngrok'], stderr=subprocess.DEVNULL)
+                elif os.name == 'nt':  # Windows
+                    subprocess.run(['taskkill', '/F', '/IM', 'ngrok.exe'], stderr=subprocess.DEVNULL)
                 print("Killed ngrok processes")
             except Exception as e:
                 print(f"Note: Ngrok cleanup: {e}")
@@ -32,26 +35,28 @@ def cleanup_ports_background():
             # Then kill any process on port 8000
             print("Checking for processes on port 8000...")
             try:
-                cmd = "lsof -ti :8000"
-                pid = subprocess.check_output(cmd, shell=True).decode().strip()
-                if pid:
-                    print(f"Found process {pid} on port 8000, killing it...")
-                    subprocess.run(['kill', '-9', pid], stderr=subprocess.DEVNULL)
-                    print(f"Killed process {pid}")
+                if os.name == 'posix':  # Mac/Linux
+                    cmd = "lsof -ti :8000"
+                    pid = subprocess.check_output(cmd, shell=True).decode().strip()
+                    if pid:
+                        subprocess.run(['kill', '-9', pid], stderr=subprocess.DEVNULL)
+                elif os.name == 'nt':  # Windows
+                    cmd = "netstat -ano | findstr :8000"
+                    output = subprocess.check_output(cmd, shell=True).decode()
+                    if output:
+                        pid = output.split()[-1]
+                        subprocess.run(['taskkill', '/F', '/PID', pid], stderr=subprocess.DEVNULL)
+                print(f"Killed process on port 8000")
             except subprocess.CalledProcessError:
                 print("No process found on port 8000")
             except Exception as e:
                 print(f"Error checking port 8000: {e}")
 
-            # Wait for ports to be fully released
             time.sleep(0.5)
-            
-            # Don't clean temp directory here anymore
             
         except Exception as e:
             print(f"Error during cleanup: {e}")
 
-    # Run cleanup in background thread
     thread = threading.Thread(target=cleanup)
     thread.daemon = True
     thread.start()
@@ -162,8 +167,10 @@ def import_file():
             # Create new app instance with clean state
             change_page = app(root)
             change_page.url_file = url_file
-            # Important: Change - we're serving from temp_dir but telling server it's a folder
-            change_page.server_process = subprocess.Popen(['python3', server_path, temp_dir, 'folder', url_file])
+            
+            # Platform-specific python command
+            python_cmd = 'python3' if os.name == 'posix' else 'python'
+            change_page.server_process = subprocess.Popen([python_cmd, server_path, temp_dir, 'folder', url_file])
             
             # Wait briefly to ensure server starts
             time.sleep(1)

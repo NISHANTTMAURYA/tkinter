@@ -262,30 +262,49 @@ def signal_handler(signum, frame):
 
 def cleanup_and_exit():
     print("Cleaning up...")
-    # Kill the ngrok tunnel
-    ngrok.kill()
-    print("Ngrok tunnel closed.")
-    
-    # Clean up temp directory if it exists
-    temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp_serve')
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-        print("Temporary directory cleaned.")
-    
-    sys.exit(0)
+    try:
+        # Kill the ngrok tunnel
+        ngrok.kill()
+        
+        # Platform-specific ngrok cleanup
+        if os.name == 'posix':  # Mac/Linux
+            subprocess.run(['pkill', 'ngrok'], stderr=subprocess.DEVNULL)
+        elif os.name == 'nt':  # Windows
+            subprocess.run(['taskkill', '/F', '/IM', 'ngrok.exe'], stderr=subprocess.DEVNULL)
+            
+        print("Ngrok tunnel closed.")
+        
+        # Clean up temp directory if it exists
+        temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'temp_serve')
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+            print("Temporary directory cleaned.")
+    except Exception as e:
+        print(f"Error during cleanup: {e}")
+    finally:
+        sys.exit(0)
 
 def check_and_kill_port(port):
     print(f"Checking if port {port} is in use...")
     try:
-        # Try to kill any process using the port
-        cmd = f"lsof -ti :{port}"
-        pid = subprocess.check_output(cmd, shell=True).decode().strip()
-        if pid:
-            print(f"Found process {pid} using port {port}, killing it...")
-            subprocess.run(['kill', '-9', pid], stderr=subprocess.DEVNULL)
-            time.sleep(1)  # Wait for the port to be released
-            print(f"Killed process on port {port}")
-            return True
+        if os.name == 'posix':  # Mac/Linux
+            # Try to kill any process using the port
+            cmd = f"lsof -ti :{port}"
+            pid = subprocess.check_output(cmd, shell=True).decode().strip()
+            if pid:
+                print(f"Found process {pid} using port {port}, killing it...")
+                subprocess.run(['kill', '-9', pid], stderr=subprocess.DEVNULL)
+        elif os.name == 'nt':  # Windows
+            cmd = f"netstat -ano | findstr :{port}"
+            output = subprocess.check_output(cmd, shell=True).decode()
+            if output:
+                pid = output.split()[-1]
+                print(f"Found process {pid} using port {port}, killing it...")
+                subprocess.run(['taskkill', '/F', '/PID', pid], stderr=subprocess.DEVNULL)
+        
+        time.sleep(1)  # Wait for the port to be released
+        print(f"Killed process on port {port}")
+        return True
     except subprocess.CalledProcessError:
         print(f"No process found using port {port}")
     except Exception as e:
