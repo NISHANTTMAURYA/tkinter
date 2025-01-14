@@ -242,6 +242,11 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 def start_ngrok(port):
     try:
+        # Set auth token if provided in environment
+        auth_token = os.getenv('NGROK_AUTH_TOKEN')
+        if auth_token:
+            ngrok.set_auth_token(auth_token)
+        
         # Open an Ngrok tunnel on the specified port
         https_url = ngrok.connect(port, "http").public_url
         print(f"\nNgrok Tunnel URL: {https_url}")
