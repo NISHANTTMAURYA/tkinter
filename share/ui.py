@@ -272,25 +272,40 @@ class app:
             if not url:
                 raise Exception("Could not get sharing URL")
 
-            # URL display with better styling
-            url_label = tk.Label(
-                self.frame2,
-                text="Share URL:",
-                font=('Helvetica', 12, 'bold'),
-                fg='#E0E0E0',
-                bg='#2C2C2C'
-            )
-            url_label.pack(pady=(20, 5))
+            # Create a frame to hold URL and copy button horizontally
+            url_frame = tk.Frame(self.frame2, bg='#2C2C2C')
+            url_frame.pack(pady=(0, 20))
 
             url_text = tk.Label(
-                self.frame2,
+                url_frame,  # Changed parent to url_frame
                 text=url,
                 font=('Helvetica', 10),
                 fg='#B0B0B0',
                 bg='#2C2C2C',
-                wraplength=350
+                wraplength=300  # Slightly reduced to make space for button
             )
-            url_text.pack(pady=(0, 20))
+            url_text.pack(side='left', padx=(0, 10))
+
+            def copy_url():
+                self.master.clipboard_clear()
+                self.master.clipboard_append(url)
+                copy_btn.config(text="Copied!")
+                # Reset button text after 2 seconds
+                self.master.after(2000, lambda: copy_btn.config(text="Copy"))
+
+            copy_btn = tk.Button(
+                url_frame,
+                text="Copy",
+                command=copy_url,
+                font=('Helvetica', 10),
+                bg='#3E6D9C',
+                fg='black',
+                activeforeground='black',
+                padx=10,
+                relief='flat',
+                cursor='hand2'
+            )
+            copy_btn.pack(side='left')
 
             # QR Code section
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
