@@ -3,8 +3,57 @@ from tkinter import filedialog
 import qrcode
 from PIL import Image, ImageTk
 import time
+import subprocess
+import os
+import threading
 
 from tkinter.filedialog import SaveFileDialog,askdirectory
+def cleanup_ports_background():
+    def cleanup():
+        print("Starting background port cleanup...")
+        try:
+            # Kill any existing ngrok processes
+            print("Checking for ngrok processes...")
+            try:
+                subprocess.run(['pkill', 'ngrok'], stderr=subprocess.DEVNULL)
+                print("Killed ngrok processes")
+            except Exception as e:
+                print(f"Note: No ngrok processes found ({e})")
+            
+            # Kill any process on port 8000
+            print("Checking for processes on port 8000...")
+            try:
+                cmd = "lsof -ti :8000"
+                pid = subprocess.check_output(cmd, shell=True).decode().strip()
+                if pid:
+                    print(f"Found process {pid} on port 8000, killing it...")
+                    subprocess.run(['kill', '-9', pid], stderr=subprocess.DEVNULL)
+                    print(f"Killed process {pid}")
+                else:
+                    print("No process found on port 8000")
+            except subprocess.CalledProcessError:
+                print("No process found on port 8000")
+            except Exception as e:
+                print(f"Error checking port 8000: {e}")
+
+            # Wait a moment to ensure ports are cleared
+            time.sleep(1)
+            print("Port cleanup completed")
+            
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+
+    # Run cleanup in background thread
+    thread = threading.Thread(target=cleanup)
+    thread.daemon = True
+    thread.start()
+    # Wait a moment for cleanup to complete
+    time.sleep(2)
+
+# Run cleanup when app starts
+print("Initializing application...")
+cleanup_ports_background()
+
 root = tk.Tk()
 root.title("Sharing window")
 import os,shutil
@@ -94,12 +143,21 @@ class app:
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
     
     def on_closing(self):
-        if self.server_process:
-            self.server_process.terminate()
-            self.server_process.wait()
-        if os.path.exists(self.url_file):  # Use instance url_file path
-            os.remove(self.url_file)
-        self.master.destroy()
+        try:
+            # Stop server process if running
+            if self.server_process:
+                self.server_process.terminate()
+                self.server_process.wait()
+            
+            # Clean up URL file if it exists
+            if self.url_file and os.path.exists(self.url_file):
+                os.remove(self.url_file)
+                
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+        finally:
+            # Always destroy the window
+            self.master.destroy()
     
     def page1(self):
         for i in self.master.winfo_children():
