@@ -138,7 +138,8 @@ def import_file():
 class app:
     def __init__(self, master):
         self.master = master
-        self.master.geometry("500x900")
+        self.master.geometry("400x600")  # Smaller, mre compact window
+        self.master.configure(bg='#2C2C2C')  # Dark background
         self.server_process = None
         self.qr_label = None
         self.url_file = None
@@ -171,95 +172,211 @@ class app:
     def page1(self):
         for i in self.master.winfo_children():
             i.destroy()
-        self.frame1 = tk.Frame(self.master, width=500, height=900)
-        self.frame1.pack()
-        self.reg_txt = tk.Label(self.frame1, text='First Page').pack()
-        self.reg_txt
 
-        button1= tk.Button(root, text= "Share a file", command=import_file)
-        button1.pack(side= tk.LEFT)
-        button2= tk.Button(root, text= "share a folder", command= import_folder)
-        button2.pack(side=tk.RIGHT)
+        # Main frame with padding and dark cream background
+        self.frame1 = tk.Frame(self.master, bg='#2A2829')  # Darker background
+        self.frame1.pack(expand=True, fill='both', padx=20, pady=20)
 
-        # self.register_btn = tk.Button(self.frame1, text="Go to Register", command=self.register)
-        # self.register_btn.pack()
+        # Title with enhanced styling
+        title = tk.Label(
+            self.frame1, 
+            text='Share Files Securely',
+            font=('Helvetica', 24, 'bold'),
+            fg='#E8D5C4',  # Cream colored text
+            bg='#2A2829',
+            pady=30
+        )
+        title.pack()
 
-        # import_button = tk.Button(root, text="Choose location of file to share", command=import_folder)
-        # import_button.pack(pady=100)
-    
+        # Container for buttons
+        button_frame = tk.Frame(self.frame1, bg='#2A2829')
+        button_frame.pack(expand=True)
+
+        # Enhanced button styling
+        button_style = {
+            'font': ('Helvetica', 14),
+            'width': 18,
+            'height': 2,
+            'bd': 0,
+            'relief': 'flat',
+            'cursor': 'hand2',
+            'borderwidth': 0,
+            'fg': 'black',          # Force black text
+            'activeforeground': 'black'  # Keep black even when clicked
+        }
+
+        button1 = tk.Button(
+            button_frame,
+            text="Share a File",
+            command=import_file,
+            bg='#3E6D9C',
+            **button_style
+        )
+        button1.pack(pady=15)
+
+        button2 = tk.Button(
+            button_frame,
+            text="Share a Folder",
+            command=import_folder,
+            bg='#3E6D9C',
+            **button_style
+        )
+        button2.pack(pady=15)
+
+        # Modified hover effects (only changes background)
+        def on_enter(e):
+            e.widget['background'] = '#2B4865'
+
+        def on_leave(e):
+            e.widget['background'] = '#3E6D9C'
+
+        # Add rounded corners and hover effects
+        for button in (button1, button2):
+            button.bind("<Enter>", on_enter)
+            button.bind("<Leave>", on_leave)
+            # Round corners using canvas
+            button.configure(highlightthickness=0)
+            radius = 15  # Adjust for more/less curve
+            button.configure(relief='flat', borderwidth=0)
+
     def page2(self):
         for i in self.master.winfo_children():
             i.destroy()
-            
-        self.frame2 = tk.Frame(self.master, width=500, height=900)
-        self.frame2.pack(expand=True, fill='both')
-        
-        # Add a title
-        title_label = tk.Label(self.frame2, text="File Sharing Active", font=('Arial', 16, 'bold'))
-        title_label.pack(pady=20)
-        
+
+        self.frame2 = tk.Frame(self.master, bg='#2A2829')
+        self.frame2.pack(expand=True, fill='both', padx=20, pady=20)
+
+        # Update title styling
+        title_label = tk.Label(
+            self.frame2,
+            text="File Sharing Active",
+            font=('Helvetica', 24, 'bold'),
+            fg='#E8D5C4',
+            bg='#2A2829',
+            pady=20
+        )
+        title_label.pack()
+
         try:
-            # Read the URL from the file with timeout
+            # Read URL with timeout
             url = None
             start_time = time.time()
-            while time.time() - start_time < 10:  # 10 second timeout
+            while time.time() - start_time < 10:
                 if os.path.exists(self.url_file):
                     with open(self.url_file, 'r') as f:
                         url = f.read().strip()
                     if url:
                         break
                 time.sleep(0.5)
-            
+
             if not url:
                 raise Exception("Could not get sharing URL")
-                
-            # Display URL
-            url_label = tk.Label(self.frame2, text=f"Share URL:", font=('Arial', 12))
-            url_label.pack(pady=5)
-            
-            url_text = tk.Label(self.frame2, text=url, font=('Arial', 10), wraplength=400)
-            url_text.pack(pady=5)
-            
-            # Create QR code
+
+            # URL display with better styling
+            url_label = tk.Label(
+                self.frame2,
+                text="Share URL:",
+                font=('Helvetica', 12, 'bold'),
+                fg='#E0E0E0',
+                bg='#2C2C2C'
+            )
+            url_label.pack(pady=(20, 5))
+
+            url_text = tk.Label(
+                self.frame2,
+                text=url,
+                font=('Helvetica', 10),
+                fg='#B0B0B0',
+                bg='#2C2C2C',
+                wraplength=350
+            )
+            url_text.pack(pady=(0, 20))
+
+            # QR Code section
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
             qr.add_data(url)
             qr.make(fit=True)
-            qr_image = qr.make_image(fill_color="black", back_color="white")
-            qr_image = qr_image.resize((300, 300))
+            qr_image = qr.make_image(fill_color="white", back_color="#2C2C2C")
+            qr_image = qr_image.resize((250, 250))
             qr_photo = ImageTk.PhotoImage(qr_image)
-            
-            # Display QR Code
-            qr_title = tk.Label(self.frame2, text="Scan QR Code:", font=('Arial', 12))
-            qr_title.pack(pady=5)
-            
-            self.qr_label = tk.Label(self.frame2, image=qr_photo)
+
+            qr_title = tk.Label(
+                self.frame2,
+                text="Scan QR Code:",
+                font=('Helvetica', 12, 'bold'),
+                fg='#E0E0E0',
+                bg='#2C2C2C'
+            )
+            qr_title.pack(pady=(0, 10))
+
+            self.qr_label = tk.Label(self.frame2, image=qr_photo, bg='#2C2C2C')
             self.qr_label.image = qr_photo
             self.qr_label.pack(pady=10)
-            
-            # Share Another File button
+
+            # Share Another File button with improved styling
             def share_another():
                 if self.server_process:
                     self.server_process.terminate()
                     self.server_process = None
                 cleanup_ports_background()
                 self.page1()
-            
-            share_btn = tk.Button(self.frame2, text="Share Another File", 
-                                command=share_another,
-                                font=('Arial', 12),
-                                bg='#4CAF50',
-                                fg='white',
-                                padx=20,
-                                pady=10)
-            share_btn.pack(pady=20)
-            
+
+            share_btn = tk.Button(
+                self.frame2,
+                text="Share Another File",
+                command=share_another,
+                font=('Helvetica', 14, 'bold'),
+                bg='#3E6D9C',
+                fg='black',             # Force black text
+                activeforeground='black',  # Keep black even when clicked
+                padx=30,
+                pady=12,
+                relief='flat',
+                cursor='hand2'
+            )
+            share_btn.pack(pady=30)
+
+            # Modified hover effects (only changes background)
+            def on_enter(e):
+                e.widget['background'] = '#2B4865'
+
+            def on_leave(e):
+                e.widget['background'] = '#3E6D9C'
+
+            share_btn.bind("<Enter>", on_enter)
+            share_btn.bind("<Leave>", on_leave)
+
+            # Update retry button if present
+            if 'retry_btn' in locals():
+                retry_btn.configure(
+                    bg='#3E6D9C',
+                    fg='black',
+                    activeforeground='black',
+                    font=('Helvetica', 12, 'bold')
+                )
+
         except Exception as e:
-            error_label = tk.Label(self.frame2, text=f"Error: {e}")
+            error_label = tk.Label(
+                self.frame2,
+                text=f"Error: {e}",
+                font=('Helvetica', 12),
+                fg='#FF6B6B',
+                bg='#2C2C2C'
+            )
             error_label.pack(pady=10)
-            # Add retry button
-            retry_btn = tk.Button(self.frame2, text="Try Again", 
-                                command=self.page1,
-                                font=('Arial', 12))
+
+            retry_btn = tk.Button(
+                self.frame2,
+                text="Try Again",
+                command=self.page1,
+                font=('Helvetica', 12),
+                bg='#3D5A80',
+                fg='white',
+                padx=20,
+                pady=10,
+                relief='flat',
+                cursor='hand2'
+            )
             retry_btn.pack(pady=10)
 
     def update_shared_content(self, path, is_file=False):
