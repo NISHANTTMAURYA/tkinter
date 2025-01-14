@@ -8,6 +8,8 @@ import signal
 import json
 import time
 import subprocess
+import io
+import zipfile
 
 PORT = 8000
 
@@ -15,6 +17,173 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         super().end_headers()
+    
+    def list_directory(self, path):
+        try:
+            # List files in directory
+            files = os.listdir(path)
+            files.sort()
+
+            # Create HTML content
+            html = f'''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Shared Files</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        margin: 0;
+                        padding: 20px;
+                        background: #f5f5f5;
+                    }}
+                    .container {{
+                        max-width: 800px;
+                        margin: 0 auto;
+                        background: white;
+                        padding: 20px;
+                        border-radius: 8px;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    }}
+                    h1 {{
+                        color: #333;
+                        margin-bottom: 20px;
+                    }}
+                    .file-list {{
+                        list-style: none;
+                        padding: 0;
+                    }}
+                    .file-item {{
+                        display: flex;
+                        align-items: center;
+                        padding: 10px;
+                        border-bottom: 1px solid #eee;
+                    }}
+                    .file-name {{
+                        flex-grow: 1;
+                        margin-right: 10px;
+                    }}
+                    .download-btn {{
+                        background: #4CAF50;
+                        color: white;
+                        padding: 8px 15px;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        text-decoration: none;
+                    }}
+                    .download-btn:hover {{
+                        background: #45a049;
+                    }}
+                    .download-all {{
+                        display: block;
+                        width: 200px;
+                        margin: 20px auto;
+                        text-align: center;
+                        background: #2196F3;
+                    }}
+                    .download-all:hover {{
+                        background: #1976D2;
+                    }}
+                    @media (max-width: 600px) {{
+                        body {{
+                            padding: 10px;
+                        }}
+                        .container {{
+                            padding: 10px;
+                        }}
+                        .file-item {{
+                            flex-direction: column;
+                            align-items: flex-start;
+                        }}
+                        .download-btn {{
+                            margin-top: 10px;
+                        }}
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>Shared Files</h1>
+                    <ul class="file-list">
+            '''
+
+            # Add files to HTML
+            for file in files:
+                if file != "index.html":  # Skip index.html if it exists
+                    file_path = os.path.join(path, file)
+                    if os.path.isfile(file_path):
+                        html += f'''
+                        <li class="file-item">
+                            <span class="file-name">{file}</span>
+                            <a href="{file}" class="download-btn" download>Download</a>
+                        </li>
+                        '''
+
+            # Add download all button if there are multiple files
+            if len(files) > 1:
+                html += f'''
+                    </ul>
+                    <a href="download-all" class="download-btn download-all">Download All</a>
+                </div>
+            </body>
+            </html>
+            '''
+            else:
+                html += '''
+                    </ul>
+                </div>
+            </body>
+            </html>
+            '''
+
+            # Send response
+            encoded = html.encode('utf-8', 'replace')
+            self.send_response(200)
+            self.send_header("Content-type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+            return None
+
+        except Exception as e:
+            print(f"Error in list_directory: {e}")
+            return super().list_directory(path)
+
+    def do_GET(self):
+        if self.path == '/download-all':
+            try:
+                # Create ZIP file in memory
+                memory_file = io.BytesIO()
+                with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    # Add all files in current directory to ZIP
+                    for root, dirs, files in os.walk(os.getcwd()):
+                        for file in files:
+                            if file != "index.html":  # Skip index.html
+                                file_path = os.path.join(root, file)
+                                arcname = os.path.relpath(file_path, os.getcwd())
+                                zf.write(file_path, arcname)
+
+                # Get ZIP file content
+                memory_file.seek(0)
+                content = memory_file.getvalue()
+
+                # Send ZIP file
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/zip')
+                self.send_header('Content-Disposition', 'attachment; filename="shared_files.zip"')
+                self.send_header('Content-Length', len(content))
+                self.end_headers()
+                self.wfile.write(content)
+                return
+
+            except Exception as e:
+                print(f"Error creating ZIP: {e}")
+                self.send_error(500, "Internal server error")
+                return
+
+        return super().do_GET()
 
 def start_ngrok(port):
     try:
