@@ -28,10 +28,8 @@ def import_folder():
             script_dir = os.path.dirname(os.path.abspath(__file__))
             server_path = os.path.join(script_dir, 'http_server.py')
             # Pass the file_path and type as command line arguments
-            subprocess.Popen(['python3', server_path, file_path, 'folder'])
-            
-            # Only change page after successful server start
             change_page = app(root)
+            change_page.server_process = subprocess.Popen(['python3', server_path, file_path, 'folder'])
             change_page.page2()
             
         except Exception as e:
@@ -54,10 +52,8 @@ def import_file():
             script_dir = os.path.dirname(os.path.abspath(__file__))
             server_path = os.path.join(script_dir, 'http_server.py')
             # Pass the file_path and type as command line arguments
-            subprocess.Popen(['python3', server_path, file_path, 'file'])
-            
-            # Only change page after successful server start
             change_page = app(root)
+            change_page.server_process = subprocess.Popen(['python3', server_path, file_path, 'file'])
             change_page.page2()
             
         except Exception as e:
@@ -74,7 +70,17 @@ class app:
     def __init__(self, master):
         self.master = master
         self.master.geometry("500x900")
+        self.server_process = None  # Add this line to track the server process
         self.page1()
+        
+        # Add cleanup on window close
+        self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
+    
+    def on_closing(self):
+        if self.server_process:
+            self.server_process.terminate()  # Terminate the server process
+            self.server_process.wait()  # Wait for it to finish
+        self.master.destroy()
     
     def page1(self):
         for i in self.master.winfo_children():
