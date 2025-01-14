@@ -22,15 +22,16 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
         try:
             # List files in directory
             files = os.listdir(path)
+            files = [f for f in files if f != "index.html" and os.path.isfile(os.path.join(path, f))]
             files.sort()
 
-            # Create HTML content
+            # Create HTML content with JavaScript for individual downloads
             html = f'''
             <!DOCTYPE html>
             <html>
             <head>
                 <meta name="viewport" content="width=device-width, initial-scale=1">
-                <title>Shared Files</title>
+                <title>Shared Files from directory {os.path.basename(os.getcwd())}</title>
                 <style>
                     body {{
                         font-family: Arial, sans-serif;
@@ -86,6 +87,16 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
                     .download-all:hover {{
                         background: #1976D2;
                     }}
+                    .download-all-files {{
+                        display: block;
+                        width: 200px;
+                        margin: 10px auto;
+                        text-align: center;
+                        background: #FF5722;
+                    }}
+                    .download-all-files:hover {{
+                        background: #F4511E;
+                    }}
                     @media (max-width: 600px) {{
                         body {{
                             padding: 10px;
@@ -102,30 +113,45 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
                         }}
                     }}
                 </style>
+                <script>
+                    function downloadAllFiles() {{
+                        const files = {str([f for f in files])};
+                        let delay = 0;
+                        files.forEach(file => {{
+                            setTimeout(() => {{
+                                const link = document.createElement('a');
+                                link.href = file;
+                                link.download = file;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                            }}, delay);
+                            delay += 500; // 500ms delay between downloads
+                        }});
+                    }}
+                </script>
             </head>
             <body>
                 <div class="container">
-                    <h1>Shared Files</h1>
+                    <h1>Shared Files from directory {os.path.basename(os.getcwd())}</h1>
                     <ul class="file-list">
             '''
 
             # Add files to HTML
             for file in files:
-                if file != "index.html":  # Skip index.html if it exists
-                    file_path = os.path.join(path, file)
-                    if os.path.isfile(file_path):
-                        html += f'''
-                        <li class="file-item">
-                            <span class="file-name">{file}</span>
-                            <a href="{file}" class="download-btn" download>Download</a>
-                        </li>
-                        '''
+                html += f'''
+                <li class="file-item">
+                    <span class="file-name">{file}</span>
+                    <a href="{file}" class="download-btn" download>Download</a>
+                </li>
+                '''
 
-            # Add download all button if there are multiple files
+            # Add both download options if there are multiple files
             if len(files) > 1:
                 html += f'''
                     </ul>
-                    <a href="download-all" class="download-btn download-all">Download All</a>
+                    <a href="download-all" class="download-btn download-all">Download All as ZIP</a>
+                    <a href="#" onclick="downloadAllFiles()" class="download-btn download-all-files">Download All Files</a>
                 </div>
             </body>
             </html>
@@ -154,6 +180,10 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/download-all':
             try:
+                # Get the current directory name
+                current_dir = os.path.basename(os.getcwd())
+                zip_filename = f"{current_dir}.zip"
+                
                 # Create ZIP file in memory
                 memory_file = io.BytesIO()
                 with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -169,10 +199,10 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
                 memory_file.seek(0)
                 content = memory_file.getvalue()
 
-                # Send ZIP file
+                # Send ZIP file with directory name
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/zip')
-                self.send_header('Content-Disposition', 'attachment; filename="shared_files.zip"')
+                self.send_header('Content-Disposition', f'attachment; filename="{zip_filename}"')
                 self.send_header('Content-Length', len(content))
                 self.end_headers()
                 self.wfile.write(content)
