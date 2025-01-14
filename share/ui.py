@@ -30,11 +30,15 @@ def import_folder():
             import subprocess
             script_dir = os.path.dirname(os.path.abspath(__file__))
             server_path = os.path.join(script_dir, 'http_server.py')
-            url_file = os.path.join(script_dir, 'share_url.txt')  # Define url file path
+            url_file = os.path.join(script_dir, 'share_url.txt')
             
-            # Pass the file_path and type as command line arguments
+            # Clear any existing URL file
+            if os.path.exists(url_file):
+                os.remove(url_file)
+            
+            # Create new app instance with clean state
             change_page = app(root)
-            change_page.url_file = url_file  # Store url file path in app instance
+            change_page.url_file = url_file
             change_page.server_process = subprocess.Popen(['python3', server_path, file_path, 'folder', url_file])
             change_page.page2()
             
@@ -57,11 +61,15 @@ def import_file():
             import subprocess
             script_dir = os.path.dirname(os.path.abspath(__file__))
             server_path = os.path.join(script_dir, 'http_server.py')
-            url_file = os.path.join(script_dir, 'share_url.txt')  # Define url file path
+            url_file = os.path.join(script_dir, 'share_url.txt')
             
-            # Pass the file_path and type as command line arguments
+            # Clear any existing URL file
+            if os.path.exists(url_file):
+                os.remove(url_file)
+            
+            # Create new app instance with clean state
             change_page = app(root)
-            change_page.url_file = url_file  # Store url file path in app instance
+            change_page.url_file = url_file
             change_page.server_process = subprocess.Popen(['python3', server_path, file_path, 'file', url_file])
             change_page.page2()
             
@@ -81,7 +89,7 @@ class app:
         self.master.geometry("500x900")
         self.server_process = None
         self.qr_label = None
-        self.url_file = None  # Add this to store the url file path
+        self.url_file = None
         self.page1()
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
     
@@ -89,8 +97,8 @@ class app:
         if self.server_process:
             self.server_process.terminate()
             self.server_process.wait()
-        if os.path.exists('share_url.txt'):
-            os.remove('share_url.txt')
+        if os.path.exists(self.url_file):  # Use instance url_file path
+            os.remove(self.url_file)
         self.master.destroy()
     
     def page1(self):
@@ -125,15 +133,24 @@ class app:
         
         # Wait briefly for the URL file to be created
         attempts = 0
-        while attempts < 10 and not os.path.exists(self.url_file):  # Use the stored url_file path
+        max_attempts = 20  # Increased wait time
+        while attempts < max_attempts and not os.path.exists(self.url_file):
             time.sleep(0.5)
             attempts += 1
-        
+            
+        if not os.path.exists(self.url_file):
+            error_label = tk.Label(self.frame2, text="Error: Could not get sharing URL", font=('Arial', 12))
+            error_label.pack(pady=10)
+            return
+            
         try:
-            # Read the URL from the file using the correct path
+            # Read the URL from the file
             with open(self.url_file, 'r') as f:
                 url = f.read().strip()
             
+            if not url:  # Check if URL is empty
+                raise Exception("No URL found")
+                
             # Display URL
             url_label = tk.Label(self.frame2, text=f"Share URL:", font=('Arial', 12))
             url_label.pack(pady=5)
