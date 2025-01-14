@@ -20,12 +20,23 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
     
     def list_directory(self, path):
         try:
-            # List files in directory
-            files = os.listdir(path)
-            files = [f for f in files if f != "index.html" and os.path.isfile(os.path.join(path, f))]
+            # List files and directories in current directory only
+            items = os.listdir(path)
+            files = []
+            folders = []
+            
+            for item in items:
+                if item != "index.html":
+                    full_path = os.path.join(path, item)
+                    if os.path.isfile(full_path):
+                        files.append(item)
+                    elif os.path.isdir(full_path):
+                        folders.append(item)
+            
             files.sort()
+            folders.sort()
 
-            # Create HTML content with JavaScript for individual downloads
+            # Create HTML content
             html = f'''
             <!DOCTYPE html>
             <html>
@@ -115,7 +126,7 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
                 </style>
                 <script>
                     function downloadAllFiles() {{
-                        const files = {str([f for f in files])};
+                        const files = {str(files)};  // Only files, not folders
                         let delay = 0;
                         files.forEach(file => {{
                             setTimeout(() => {{
@@ -126,7 +137,7 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
                                 link.click();
                                 document.body.removeChild(link);
                             }}, delay);
-                            delay += 500; // 500ms delay between downloads
+                            delay += 500;
                         }});
                     }}
                 </script>
@@ -137,29 +148,38 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
                     <ul class="file-list">
             '''
 
-            # Add files to HTML
+            # Add folders first
+            for folder in folders:
+                html += f'''
+                <li class="file-item">
+                    <span class="file-name">📁 {folder}/</span>
+                </li>
+                '''
+
+            # Add files
             for file in files:
                 html += f'''
                 <li class="file-item">
-                    <span class="file-name">{file}</span>
+                    <span class="file-name">📄 {file}</span>
                     <a href="{file}" class="download-btn" download>Download</a>
                 </li>
                 '''
 
-            # Add both download options if there are multiple files
-            if len(files) > 1:
+            # Add download options if there are files
+            if files:
                 html += f'''
                     </ul>
                     <a href="download-all" class="download-btn download-all">Download All as ZIP</a>
                     <a href="#" onclick="downloadAllFiles()" class="download-btn download-all-files">Download All Files</a>
                 </div>
-            </body>
-            </html>
-            '''
+                '''
             else:
                 html += '''
                     </ul>
                 </div>
+                '''
+
+            html += '''
             </body>
             </html>
             '''
@@ -178,6 +198,11 @@ class MyHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
             return super().list_directory(path)
 
     def do_GET(self):
+        # Block any path traversal attempts
+        if '..' in self.path or '//' in self.path:
+            self.send_error(403, "Access denied")
+            return  #these three lines are for security
+        
         if self.path == '/download-all':
             try:
                 # Get the current directory name

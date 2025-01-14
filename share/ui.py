@@ -9,6 +9,7 @@ import threading
 import importlib.util
 import traceback
 import ngrok
+import shutil
 
 from tkinter.filedialog import SaveFileDialog,askdirectory
 def cleanup_ports_background():
@@ -103,26 +104,35 @@ def import_folder():
 def import_file():
     try:
         global file_path
-        file_path = filedialog.askopenfilename(title="Select a file to share", filetypes=[("All files", "*.*")])
-        if not file_path:  # If user cancels selection
+        files = filedialog.askopenfilenames(title="Select files to share", filetypes=[("All files", "*.*")])
+        if not files:  # If user cancels selection
             return
             
-        print(f"Selected file: {file_path}")
+        print(f"Selected files: {files}")
         
         try:
             import subprocess
             script_dir = os.path.dirname(os.path.abspath(__file__))
             server_path = os.path.join(script_dir, 'http_server.py')
             url_file = os.path.join(script_dir, 'share_url.txt')
+            temp_dir = os.path.join(script_dir, 'temp_serve')
             
             # Clear any existing URL file
             if os.path.exists(url_file):
                 os.remove(url_file)
             
+            # Create temp directory if it doesn't exist
+            if not os.path.exists(temp_dir):
+                os.makedirs(temp_dir)
+            
+            # Copy all selected files to temp directory
+            for file_path in files:
+                shutil.copy2(file_path, temp_dir)
+            
             # Create new app instance with clean state
             change_page = app(root)
             change_page.url_file = url_file
-            change_page.server_process = subprocess.Popen(['python3', server_path, file_path, 'file', url_file])
+            change_page.server_process = subprocess.Popen(['python3', server_path, temp_dir, 'folder', url_file])
             change_page.page2()
             
         except Exception as e:
